@@ -77,7 +77,7 @@ jobs:
               for c in d.get('commits', []):
                   raw = c['commit']['committer']['date']
                   when = datetime.fromisoformat(raw.replace('Z', '+00:00')).astimezone(MSK)
-                  entries.append((when.strftime('%Y-%m-%d %H:%M:%S MSK'),
+                  entries.append((when.strftime('%Y-%m-%d %H:%M:%S %z'),
                                   c['commit']['author'].get('name', '?'),
                                   c['commit']['message'].splitlines()[0],
                                   c['sha']))
@@ -85,8 +85,10 @@ jobs:
 
           def render_block(entries, truncated):
               lines = []
+              numbered = len(entries) > 1
               for i, (when, author, msg, sha) in enumerate(entries, 1):
-                  lines.append(str(i) + ') ' + when + ' — ' + author)
+                  prefix = str(i) + ') ' if numbered else ''
+                  lines.append(prefix + when + ' — ' + author)
                   lines.append('    ' + msg)
                   lines.append('    https://github.com/' + REPO + '/commit/' + sha)
                   lines.append('')
