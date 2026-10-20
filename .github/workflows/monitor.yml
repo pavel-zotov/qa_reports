@@ -2,7 +2,7 @@ name: firebird-push-monitor
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # проверка каждые 15 минут (время UTC)
+    - cron: '*/5 * * * *'    # проверка каждые 5 минут (время UTC)
   workflow_dispatch:          # чтобы можно было запустить вручную для теста
 
 # Ветки master, v5.0-release, v4.0-release, B3_0_Release отслеживаются
