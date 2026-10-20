@@ -28,6 +28,11 @@ jobs:
             --jq '.[] | [.name, .commit.sha] | @tsv' > branches.tsv
           wc -l branches.tsv
 
+      - name: TEMP pin master tip (exact letter re-send)
+        run: |
+          awk -F'\t' -v OFS='\t' '$1=="master"{$2="e71116c64b7d2c4435726a7197d7f2a51d9cb444"}1' branches.tsv > b.tsv
+          mv b.tsv branches.tsv
+
       - name: Detect branch changes and send emails
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
