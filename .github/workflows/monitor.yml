@@ -80,6 +80,7 @@ jobs:
                   when = datetime.fromisoformat(raw.replace('Z', '+00:00')).astimezone(MSK)
                   entries.append((when.strftime('%Y-%m-%d %H:%M:%S %z'),
                                   c['commit']['author'].get('name', '?'),
+                                  c['commit']['author'].get('email', ''),
                                   c['commit']['message'].splitlines()[0],
                                   c['sha']))
               return entries, bool(d.get('truncated'))
@@ -87,7 +88,7 @@ jobs:
           def render_block(entries, truncated):
               lines = []
               numbered = len(entries) > 1
-              for i, (when, author, msg, sha) in enumerate(entries, 1):
+              for i, (when, author, email, msg, sha) in enumerate(entries, 1):
                   prefix = str(i) + ') ' if numbered else ''
                   lines.append(prefix + when + ' — ' + author)
                   lines.append('    ' + msg)
@@ -111,10 +112,20 @@ jobs:
                   smtp.login(os.environ['SMTP_USERNAME'], os.environ['SMTP_PASSWORD'])
                   smtp.send_message(msg)
 
+          BOT_NAMES = {'actions-user', 'github-actions', 'github-actions[bot]', 'github action'}
+          BOT_EMAIL = 'action@github.com'
+
+          def is_bot(author, email):
+              return author.lower() in BOT_NAMES or email.lower() == BOT_EMAIL
+
           def subject_prefix(all_entries):
-              authors = [a for (_, a, _, _) in all_entries]
-              if authors and len(set(authors)) == 1:
-                  return '[' + authors[0] + '] '
+              if len(all_entries) == 1:
+                  _, author, _, _, _ = all_entries[0]
+                  return '[' + author + '] '
+              humans = [a for (_, a, e, _, _) in all_entries if not is_bot(a, e)]
+              pool = humans if humans else [a for (_, a, e, _, _) in all_entries]
+              if pool and len(set(pool)) == 1:
+                  return '[' + pool[0] + '] '
               return ''
 
           sent = []
