@@ -5,8 +5,13 @@ on:
     - cron: '*/15 * * * *'   # проверка каждые 15 минут (время UTC)
   workflow_dispatch:          # чтобы можно было запустить вручную для теста
 
+# Ветки master, v5.0-release, v4.0-release, B3_0_Release отслеживаются
+# по отдельности: каждой — своё письмо с именем ветки в теме.
+# Пуши в любые другие ветки собираются в одно сводное письмо.
+# Состояние вершин всех веток хранится в branch-state.json.
+
 permissions:
-  contents: write             # чтобы workflow мог коммитить файл last-sha
+  contents: write             # чтобы workflow мог коммитить файл branch-state.json
 
 jobs:
   check-and-notify:
@@ -14,89 +19,139 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Получить последний коммит FirebirdSQL/firebird
-        id: latest
+      - name: Fetch tips of all FirebirdSQL/firebird branches
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sha=$(gh api 'repos/FirebirdSQL/firebird/commits?per_page=1' --jq '.[0].sha')
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          gh api --paginate 'repos/FirebirdSQL/firebird/branches?per_page=100' \
+            --jq '.[] | [.name, .commit.sha] | @tsv' > branches.tsv
+          wc -l branches.tsv
 
-      - name: Сравнить с последним замеченным
-        id: cmp
-        run: |
-          old=$(cat last-sha 2>/dev/null || echo '')
-          new='${{ steps.latest.outputs.sha }}'
-          if [ -z "$old" ]; then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-            echo 'save=true'    >> "$GITHUB_OUTPUT"
-          elif [ "$old" != "$new" ]; then
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-            echo 'save=true'    >> "$GITHUB_OUTPUT"
-            echo "old=$old"     >> "$GITHUB_OUTPUT"
-          else
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-            echo 'save=false'    >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Сформировать текст письма
-        if: steps.cmp.outputs.changed == 'true'
-        id: mail
+      - name: Detect branch changes and send emails
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          old='${{ steps.cmp.outputs.old }}'
-          new='${{ steps.latest.outputs.sha }}'
-          gh api "repos/FirebirdSQL/firebird/compare/$old...$new" > compare.json
-          count=$(jq '.commits | length' compare.json)
-          {
-            echo "New commits in FirebirdSQL/firebird ($count):"
-            echo ""
-            i=0
-            while IFS=$'\t' read -r sha cdate author msg; do
-              i=$((i+1))
-              when=$(TZ='Europe/Moscow' date -d "$cdate" '+%Y-%m-%d %H:%M:%S MSK' 2>/dev/null || echo "$cdate")
-              printf '%s) %s — %s\n    %s\n    https://github.com/FirebirdSQL/firebird/commit/%s\n\n' \
-                "$i" "$when" "$author" "$msg" "$sha"
-            done < <(jq -r '.commits[] | [.sha, .commit.committer.date, (.commit.author.name // "?"), (.commit.message | split("\n")[0])] | @tsv' compare.json)
-            if [ "$(jq '.truncated' compare.json)" = 'true' ]; then
-              echo "(list truncated: more than 250 commits, not all shown)"
-              echo ""
-            fi
-            if [ "$count" = '0' ]; then
-              echo "(commit list is empty — history may have been rewritten;"
-              echo "see the full comparison via the link below)"
-              echo ""
-            fi
-            echo "Full comparison:"
-            echo "https://github.com/FirebirdSQL/firebird/compare/$old...$new"
-          } > email-body.txt
-          {
-            echo "count=$count"
-            echo 'body<<BODY_EOF'
-            cat email-body.txt
-            echo 'BODY_EOF'
-          } >> "$GITHUB_OUTPUT"
+          cat > notify.py <<'PYEOF'
+          import json, os, smtplib, ssl, subprocess
+          from datetime import datetime
+          from email.message import EmailMessage
+          from zoneinfo import ZoneInfo
 
-      - name: Отправить письмо
-        if: steps.cmp.outputs.changed == 'true'
-        uses: dawidd6/action-send-mail@v22
-        with:
-          server_address: smtp.yandex.ru
-          server_port: 465            # TLS включается автоматически на 465
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          from: 'Firebird push monitor <${{ secrets.SMTP_USERNAME }}>'
-          to: p519446@yandex.ru
-          subject: '[firebird] New commits in FirebirdSQL/firebird (${{ steps.mail.outputs.count }})'
-          body: ${{ steps.mail.outputs.body }}
+          NAMED = ['master', 'v5.0-release', 'v4.0-release', 'B3_0_Release']
+          TO = 'p519446@yandex.ru'
+          MSK = ZoneInfo('Europe/Moscow')
+          REPO = 'FirebirdSQL/firebird'
 
-      - name: Запомнить новый SHA
-        if: steps.cmp.outputs.save == 'true'
+          def gh(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+
+          state = {}
+          if os.path.exists('branch-state.json'):
+              state = json.load(open('branch-state.json', encoding='utf-8'))
+
+          branches = {}
+          for line in open('branches.tsv', encoding='utf-8'):
+              name, sha = line.rstrip('\n').split('\t')
+              branches[name] = sha
+
+          changed_named = []
+          changed_others = []
+          for name, sha in branches.items():
+              old = state.get(name)
+              if old and old != sha:
+                  item = (name, old, sha)
+                  if name in NAMED:
+                      changed_named.append(item)
+                  else:
+                      changed_others.append(item)
+
+          def commit_entries(old, new):
+              try:
+                  d = gh('repos/' + REPO + '/compare/' + old + '...' + new)
+              except Exception as exc:
+                  print('compare failed:', exc)
+                  return None
+              entries = []
+              for c in d.get('commits', []):
+                  raw = c['commit']['committer']['date']
+                  when = datetime.fromisoformat(raw.replace('Z', '+00:00')).astimezone(MSK)
+                  entries.append((when.strftime('%Y-%m-%d %H:%M:%S MSK'),
+                                  c['commit']['author'].get('name', '?'),
+                                  c['commit']['message'].splitlines()[0],
+                                  c['sha']))
+              return entries, bool(d.get('truncated'))
+
+          def render_block(entries, truncated):
+              lines = []
+              for i, (when, author, msg, sha) in enumerate(entries, 1):
+                  lines.append(str(i) + ') ' + when + ' — ' + author)
+                  lines.append('    ' + msg)
+                  lines.append('    https://github.com/' + REPO + '/commit/' + sha)
+                  lines.append('')
+              if not entries:
+                  lines.append('(no commits listed — history may have been rewritten or the list is unavailable)')
+                  lines.append('')
+              if truncated:
+                  lines.append('(list truncated: more than 250 commits, not all shown)')
+                  lines.append('')
+              return lines
+
+          def send(subject, body):
+              msg = EmailMessage()
+              msg['From'] = 'Firebird push monitor <' + os.environ['SMTP_USERNAME'] + '>'
+              msg['To'] = TO
+              msg['Subject'] = subject
+              msg.set_content(body)
+              with smtplib.SMTP_SSL('smtp.yandex.ru', 465, context=ssl.create_default_context()) as smtp:
+                  smtp.login(os.environ['SMTP_USERNAME'], os.environ['SMTP_PASSWORD'])
+                  smtp.send_message(msg)
+
+          sent = []
+          for name, old, new in changed_named:
+              res = commit_entries(old, new)
+              entries, trunc = res if res else ([], False)
+              n = len(entries)
+              lines = ['New pushes in FirebirdSQL/firebird branch: ' + name + ' (' + str(n) + '):', '']
+              lines += render_block(entries, trunc)
+              lines += ['Full comparison:', 'https://github.com/' + REPO + '/compare/' + old + '...' + new]
+              send('[firebird] New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')',
+                   '\n'.join(lines))
+              sent.append(name + ': ' + str(n))
+
+          if changed_others:
+              lines = []
+              links = []
+              total = 0
+              for name, old, new in changed_others:
+                  res = commit_entries(old, new)
+                  entries, trunc = res if res else ([], False)
+                  total += len(entries)
+                  lines.append('Branch: ' + name + ' (' + str(len(entries)) + ')')
+                  lines += render_block(entries, trunc)
+                  links.append('- ' + name + ': https://github.com/' + REPO + '/compare/' + old + '...' + new)
+              if lines:
+                  head = ['New pushes in FirebirdSQL/firebird (' + str(total) + '):', '']
+                  lines = head + lines + ['Full comparison:'] + links
+                  send('[firebird] New pushes in ' + REPO + ' (' + str(total) + ')', '\n'.join(lines))
+                  sent.append('others: ' + str(total))
+
+          json.dump(branches, open('branch-state.json', 'w', encoding='utf-8'), indent=1, sort_keys=True)
+
+          summary = '; '.join(sent) if sent else 'no changes'
+          print('emails sent:', summary)
+          out = os.environ.get('GITHUB_OUTPUT')
+          if out:
+              with open(out, 'a', encoding='utf-8') as f:
+                  f.write('sent<<EOF\n' + summary + '\nEOF\n')
+          PYEOF
+          python notify.py
+
+      - name: Save new branch state
         run: |
-          echo '${{ steps.latest.outputs.sha }}' > last-sha
           git config user.name  'monitor-bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add last-sha
-          git diff --cached --quiet || git commit -m 'update last-sha'
+          git add branch-state.json
+          git diff --cached --quiet || git commit -m 'update branch-state'
           git push
