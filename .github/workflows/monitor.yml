@@ -111,15 +111,20 @@ jobs:
                   smtp.login(os.environ['SMTP_USERNAME'], os.environ['SMTP_PASSWORD'])
                   smtp.send_message(msg)
 
+          def subject_prefix(all_entries):
+              authors = [a for (_, a, _, _) in all_entries]
+              if authors and len(set(authors)) == 1:
+                  return '[' + authors[0] + '] '
+              return ''
+
           sent = []
           for name, old, new in changed_named:
               res = commit_entries(old, new)
               entries, trunc = res if res else ([], False)
               n = len(entries)
-              lines = ['New pushes in FirebirdSQL/firebird branch: ' + name + ' (' + str(n) + '):', '']
-              lines += render_block(entries, trunc)
+              lines = render_block(entries, trunc)
               lines += ['Full comparison:', 'https://github.com/' + REPO + '/compare/' + old + '...' + new]
-              send('[firebird] New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')',
+              send(subject_prefix(entries) + 'New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')',
                    '\n'.join(lines))
               sent.append(name + ': ' + str(n))
 
@@ -127,17 +132,19 @@ jobs:
               lines = []
               links = []
               total = 0
+              all_entries = []
               for name, old, new in changed_others:
                   res = commit_entries(old, new)
                   entries, trunc = res if res else ([], False)
                   total += len(entries)
+                  all_entries += entries
                   lines.append('Branch: ' + name + ' (' + str(len(entries)) + ')')
                   lines += render_block(entries, trunc)
                   links.append('- ' + name + ': https://github.com/' + REPO + '/compare/' + old + '...' + new)
               if lines:
-                  head = ['New pushes in FirebirdSQL/firebird (' + str(total) + '):', '']
-                  lines = head + lines + ['Full comparison:'] + links
-                  send('[firebird] New pushes in ' + REPO + ' (' + str(total) + ')', '\n'.join(lines))
+                  lines = lines + ['Full comparison:'] + links
+                  send(subject_prefix(all_entries) + 'New pushes in ' + REPO + ' (' + str(total) + ')',
+                       '\n'.join(lines))
                   sent.append('others: ' + str(total))
 
           json.dump(branches, open('branch-state.json', 'w', encoding='utf-8'), indent=1, sort_keys=True)
