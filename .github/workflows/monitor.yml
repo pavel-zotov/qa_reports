@@ -39,6 +39,45 @@ jobs:
             echo 'save=false'    >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Сформировать текст письма
+        if: steps.cmp.outputs.changed == 'true'
+        id: mail
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          old='${{ steps.cmp.outputs.old }}'
+          new='${{ steps.latest.outputs.sha }}'
+          gh api "repos/FirebirdSQL/firebird/compare/$old...$new" > compare.json
+          count=$(jq '.commits | length' compare.json)
+          {
+            echo "В репозитории FirebirdSQL/firebird появились новые коммиты ($count):"
+            echo ""
+            i=0
+            while IFS=$'\t' read -r sha cdate author msg; do
+              i=$((i+1))
+              when=$(TZ='Europe/Moscow' date -d "$cdate" '+%Y-%m-%d %H:%M:%S MSK' 2>/dev/null || echo "$cdate")
+              printf '%s) %s — %s\n    %s\n    https://github.com/FirebirdSQL/firebird/commit/%s\n\n' \
+                "$i" "$when" "$author" "$msg" "$sha"
+            done < <(jq -r '.commits[] | [.sha, .commit.committer.date, (.commit.author.name // "?"), (.commit.message | split("\n")[0])] | @tsv' compare.json)
+            if [ "$(jq '.truncated' compare.json)" = 'true' ]; then
+              echo "(список усечён: коммитов больше 250, показаны не все)"
+              echo ""
+            fi
+            if [ "$count" = '0' ]; then
+              echo "(список коммитов пуст — возможно, была перезапись истории;"
+              echo "см. полное сравнение по ссылке ниже)"
+              echo ""
+            fi
+            echo "Полное сравнение:"
+            echo "https://github.com/FirebirdSQL/firebird/compare/$old...$new"
+          } > email-body.txt
+          {
+            echo "count=$count"
+            echo 'body<<BODY_EOF'
+            cat email-body.txt
+            echo 'BODY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Отправить письмо
         if: steps.cmp.outputs.changed == 'true'
         uses: dawidd6/action-send-mail@v22
@@ -49,11 +88,8 @@ jobs:
           password: ${{ secrets.SMTP_PASSWORD }}
           from: 'Firebird push monitor <${{ secrets.SMTP_USERNAME }}>'
           to: p519446@yandex.ru
-          subject: '[firebird] Новые коммиты в FirebirdSQL/firebird'
-          body: |
-            В репозитории FirebirdSQL/firebird появились новые коммиты:
-
-            https://github.com/FirebirdSQL/firebird/compare/${{ steps.cmp.outputs.old }}...${{ steps.latest.outputs.sha }}
+          subject: '[firebird] Новые коммиты в FirebirdSQL/firebird (${{ steps.mail.outputs.count }})'
+          body: ${{ steps.mail.outputs.body }}
 
       - name: Запомнить новый SHA
         if: steps.cmp.outputs.save == 'true'
