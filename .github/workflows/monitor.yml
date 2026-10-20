@@ -120,7 +120,9 @@ jobs:
 
           def subject_prefix(all_entries):
               if len(all_entries) == 1:
-                  _, author, _, _, _ = all_entries[0]
+                  _, author, email, msg, _ = all_entries[0]
+                  if is_bot(author, email) and 'increment build number' in msg.lower():
+                      return '[' + author + '] [increment build number] '
                   return '[' + author + '] '
               humans = [a for (_, a, e, _, _) in all_entries if not is_bot(a, e)]
               pool = humans if humans else [a for (_, a, e, _, _) in all_entries]
