@@ -28,11 +28,6 @@ jobs:
             --jq '.[] | [.name, .commit.sha] | @tsv' > branches.tsv
           wc -l branches.tsv
 
-      - name: TEMP pin v5 tip (bot-subject test)
-        run: |
-          awk -F'\t' -v OFS='\t' '$1=="v5.0-release"{$2="13e7ed7dd0dd067a057851761b6753e31d2e5ae1"}1' branches.tsv > b.tsv
-          mv b.tsv branches.tsv
-
       - name: Detect branch changes and send emails
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
