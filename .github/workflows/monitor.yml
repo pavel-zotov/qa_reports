@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write             # чтобы workflow мог коммитить файл branch-state.json
 
+concurrency:
+  group: firebird-push-monitor # сериализует запуски: параллельный запуск дождётся очереди,
+  cancel-in-progress: false    # увидит уже обновлённое состояние и не пришлёт дубль
+
 jobs:
   check-and-notify:
     runs-on: ubuntu-latest
