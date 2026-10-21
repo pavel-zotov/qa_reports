@@ -36,6 +36,7 @@
  "work/check_vs_build": "e5e28b91a9a7ca25c0ecb5cecce845b40885fcd5",
  "work/contractions": "024f81834a916d7e5ecec1949001c1f53bcf824f",
  "work/core-6322": "b6ccc629569c633acdcb9863e61da9e76fb5befe",
+ "work/fbclient-static-v5": "00e08dc26470f3520a2eb588308962002c872b88",
  "work/fix-long-context-aliases": "1e216232f5f65dc269c004ffea5d6e091272d1d0",
  "work/fix-shutdown-crash-after-ping": "fe8d2c50320ee909673923cd7400d31173c4d8cd",
  "work/gh-2629": "7eeeac41e066b72033f215bfc027735c50af1c27",
