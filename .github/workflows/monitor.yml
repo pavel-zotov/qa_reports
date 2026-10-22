@@ -87,9 +87,11 @@ jobs:
                                   c['commit']['author'].get('email', ''),
                                   c['commit']['message'].splitlines()[0],
                                   c['sha']))
-              return entries, bool(d.get('truncated'))
+              total = d.get('total_commits')
+              truncated = bool(d.get('truncated')) or (total is not None and total > len(entries))
+              return entries, total, truncated
 
-          def render_block(entries, truncated):
+          def render_block(entries, total, truncated):
               lines = []
               numbered = len(entries) > 1
               for i, (when, author, email, msg, sha) in enumerate(entries, 1):
@@ -102,7 +104,9 @@ jobs:
                   lines.append('(no commits listed — history may have been rewritten or the list is unavailable)')
                   lines.append('')
               if truncated:
-                  lines.append('(list truncated: more than 250 commits, not all shown)')
+                  shown = str(len(entries))
+                  total_s = str(total) if total else 'many'
+                  lines.append('(list truncated: showing ' + shown + ' of ' + total_s + ' commits — see full comparison)')
                   lines.append('')
               return lines
 
@@ -137,9 +141,9 @@ jobs:
           sent = []
           for name, old, new in changed_named:
               res = commit_entries(old, new)
-              entries, trunc = res if res else ([], False)
+              entries, total_c, trunc = res if res else ([], 0, False)
               n = len(entries)
-              lines = render_block(entries, trunc)
+              lines = render_block(entries, total_c, trunc)
               lines += ['Full comparison:', 'https://github.com/' + REPO + '/compare/' + old + '...' + new]
               send(subject_prefix(entries) + 'New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')',
                    '\n'.join(lines))
@@ -152,15 +156,16 @@ jobs:
               all_entries = []
               for name, old, new in changed_others:
                   res = commit_entries(old, new)
-                  entries, trunc = res if res else ([], False)
+                  entries, total_c, trunc = res if res else ([], 0, False)
                   total += len(entries)
                   all_entries += entries
                   lines.append('Branch: ' + name + ' (' + str(len(entries)) + ')')
-                  lines += render_block(entries, trunc)
+                  lines += render_block(entries, total_c, trunc)
                   links.append('- ' + name + ': https://github.com/' + REPO + '/compare/' + old + '...' + new)
               if lines:
+                  branch_tag = ' [' + changed_others[0][0] + ']' if len(changed_others) == 1 else ''
                   lines = lines + ['Full comparison:'] + links
-                  send(subject_prefix(all_entries) + 'New pushes in ' + REPO + ' (' + str(total) + ')',
+                  send(subject_prefix(all_entries) + 'New pushes in ' + REPO + ' (' + str(total) + ')' + branch_tag,
                        '\n'.join(lines))
                   sent.append('others: ' + str(total))
 
