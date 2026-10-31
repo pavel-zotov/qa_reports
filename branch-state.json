@@ -71,7 +71,7 @@
  "work/refactor-runtime-stats": "8f20634d9c6189c60b6990c139fcd48bce18e832",
  "work/remove-server-legacy-auth": "a4c8d1467105063a38e148047eb7c178d6be8aeb",
  "work/shared-memory-tests": "a8fd2ce7794d7d7657a8482ca549c039bb7471c6",
- "work/tzdata-update-master": "3c811a811b15aa4ab855d7f45642efe02c2d5651",
- "work/tzdata-update-v4.0-release": "187972e6d86d6d4874648ccf04cc6ba870dff16d",
- "work/tzdata-update-v5.0-release": "2f376725fe042c06f192badbf0c3582ead7b1fc0"
+ "work/tzdata-update-master": "bdf0f0bd0a6775b8fc432b0b7421e6e29eb5fa31",
+ "work/tzdata-update-v4.0-release": "c1a28ee67555e7e73f9de4a5b21560a320187c1e",
+ "work/tzdata-update-v5.0-release": "346a3136d074f7a31de73d006493f9b347e00d68"
 }
