@@ -29,6 +29,7 @@
  "v4.0-release": "6329bc9d3c5d123cbb9460c02a1200faa935af48",
  "v5.0-release": "6b173ba8808b1533ff18ef480ce8504f81e084e3",
  "v6-hash-outer-joins": "6fc4b98d22b26a099385ebea6f35fb777dd301aa",
+ "v6-trace-io-stats-per-tablespace": "4319be966858c7aa9d9b849aab414c0b015b3d7f",
  "work/7809": "10c2e8ec013c8a166d22c303a3eb6840459aaec6",
  "work/8822": "ae3d1dd228813d026f24cd5fc4829e416dc3b06f",
  "work/UpdateOverwriteMode": "a7b3f397276167e8729a7178f561aaa43642c431",
