@@ -72,5 +72,6 @@
  "work/read_consistency_imply_read_committed": "8b1507e21165bfb3682823ff593215c5a02d63cd",
  "work/refactor-runtime-stats": "8f20634d9c6189c60b6990c139fcd48bce18e832",
  "work/remove-server-legacy-auth": "a4c8d1467105063a38e148047eb7c178d6be8aeb",
- "work/shared-memory-tests": "a8fd2ce7794d7d7657a8482ca549c039bb7471c6"
+ "work/shared-memory-tests": "a8fd2ce7794d7d7657a8482ca549c039bb7471c6",
+ "work/window-perf": "3f5b59c9e95706943c4d64df4252912a5c760bdf"
 }
