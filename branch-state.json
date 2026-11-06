@@ -26,7 +26,7 @@
  "semi-joins-v5": "e1a767df263bc9fb63deace28d24d50701c0447e",
  "trace-failed-attach": "1ab2ad8af59cb22ca97ab5911ee822600e93c6e6",
  "trace-psql-compile": "dd375c3613aff45a6357824dad41360b6f9b4968",
- "v4.0-release": "6329bc9d3c5d123cbb9460c02a1200faa935af48",
+ "v4.0-release": "8316ee49add87bf2b55ca1f1c23e2246bbd93781",
  "v5.0-release": "8c66d965b18e5b095aa8c15f7cc5b007abd35a6e",
  "v6-hash-outer-joins": "6fc4b98d22b26a099385ebea6f35fb777dd301aa",
  "v6-trace-io-stats-per-tablespace": "4319be966858c7aa9d9b849aab414c0b015b3d7f",
