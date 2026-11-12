@@ -27,7 +27,7 @@
  "trace-failed-attach": "1ab2ad8af59cb22ca97ab5911ee822600e93c6e6",
  "trace-psql-compile": "dd375c3613aff45a6357824dad41360b6f9b4968",
  "v4.0-release": "6a471bd1c89f57155252578d3f7307e587376c96",
- "v5.0-release": "5bb0d97245252bc2c6a79a699cebd06321b5f162",
+ "v5.0-release": "fb98ab8f68ed04a2c37f4019f8b4c4ade8429b02",
  "v6-hash-outer-joins": "6fc4b98d22b26a099385ebea6f35fb777dd301aa",
  "v6-trace-io-stats-per-tablespace": "4319be966858c7aa9d9b849aab414c0b015b3d7f",
  "work/7809": "10c2e8ec013c8a166d22c303a3eb6840459aaec6",
