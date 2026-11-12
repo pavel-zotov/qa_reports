@@ -138,6 +138,25 @@ jobs:
                   return '[' + pool[0] + '] '
               return ''
 
+          def time_stamp():
+              return datetime.now(MSK).strftime('%H:%M') + '. '
+
+          def sha_suffix(entries, subject):
+              """First 7 chars of the earliest and the latest commit SHAs;
+              each is appended only if not already present in the subject."""
+              if not entries:
+                  return ''
+              ordered = sorted(entries, key=lambda e: e[0])
+              picks = [ordered[0][4]]
+              if ordered[-1][4] != ordered[0][4]:
+                  picks.append(ordered[-1][4])
+              tail = ''
+              for s in picks:
+                  short = s[:7]
+                  if short not in (subject + tail):
+                      tail += ' ' + short
+              return tail
+
           sent = []
           for name, old, new in changed_named:
               res = commit_entries(old, new)
@@ -145,8 +164,10 @@ jobs:
               n = len(entries)
               lines = render_block(entries, total_c, trunc)
               lines += ['Full comparison:', 'https://github.com/' + REPO + '/compare/' + old + '...' + new]
-              send(subject_prefix(entries) + 'New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')',
-                   '\n'.join(lines))
+              subject = (subject_prefix(entries) + time_stamp()
+                         + 'New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')')
+              subject += sha_suffix(entries, subject)
+              send(subject, '\n'.join(lines))
               sent.append(name + ': ' + str(n))
 
           if changed_others:
@@ -165,8 +186,10 @@ jobs:
               if lines:
                   branch_tag = ' [' + changed_others[0][0] + ']' if len(changed_others) == 1 else ''
                   lines = lines + ['Full comparison:'] + links
-                  send(subject_prefix(all_entries) + 'New pushes in ' + REPO + ' (' + str(total) + ')' + branch_tag,
-                       '\n'.join(lines))
+                  head = (subject_prefix(all_entries) + time_stamp()
+                          + 'New pushes in ' + REPO + ' (' + str(total) + ')' + branch_tag)
+                  head += sha_suffix(all_entries, head)
+                  send(head, '\n'.join(lines))
                   sent.append('others: ' + str(total))
 
           json.dump(branches, open('branch-state.json', 'w', encoding='utf-8'), indent=1, sort_keys=True)
