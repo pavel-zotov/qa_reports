@@ -70,6 +70,7 @@
  "work/ltt": "f8b00af1f9dbc630db829dbe68755d2e08288acd",
  "work/macos-no-flat-namespace-v5": "5a6be3f9e26246dc74394831ec7b21f26cc040bd",
  "work/namespace-1": "b502447e855967800826324562f9351febbc5c6e",
+ "work/opt-stream-dependency-addi": "73b2fce5ac32e4d20be3418a0c692a5ff704584a",
  "work/profiler": "d2dc528b9c637ae75b0fadb7b547e4670c13ac1f",
  "work/read_consistency_imply_read_committed": "8b1507e21165bfb3682823ff593215c5a02d63cd",
  "work/refactor-runtime-stats": "8f20634d9c6189c60b6990c139fcd48bce18e832",
