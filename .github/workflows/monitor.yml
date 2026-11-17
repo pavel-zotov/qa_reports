@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: master               # вершина master НА МОМЕНТ ЗАПУСКА, а не на момент dispatch —
+                                    # защита от долгого простоя в очереди GitHub
 
       - name: Fetch tips of all FirebirdSQL/firebird branches
         env:
@@ -33,6 +36,7 @@ jobs:
           wc -l branches.tsv
 
       - name: Detect branch changes and send emails
+        id: detect
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
@@ -116,7 +120,7 @@ jobs:
               msg['To'] = TO
               msg['Subject'] = subject
               msg.set_content(body)
-              with smtplib.SMTP_SSL('smtp.yandex.ru', 465, context=ssl.create_default_context()) as smtp:
+              with smtplib.SMTP_SSL('smtp.yandex.ru', 465, timeout=60, context=ssl.create_default_context()) as smtp:
                   smtp.login(os.environ['SMTP_USERNAME'], os.environ['SMTP_PASSWORD'])
                   smtp.send_message(msg)
 
@@ -158,6 +162,7 @@ jobs:
               return tail
 
           sent = []
+          errors = []
           for name, old, new in changed_named:
               res = commit_entries(old, new)
               entries, total_c, trunc = res if res else ([], 0, False)
@@ -167,8 +172,12 @@ jobs:
               subject = (subject_prefix(entries) + time_stamp()
                          + 'New pushes in ' + REPO + ' branch: ' + name + ' (' + str(n) + ')')
               subject += sha_suffix(entries, subject)
-              send(subject, '\n'.join(lines))
-              sent.append(name + ': ' + str(n))
+              try:
+                  send(subject, '\n'.join(lines))
+                  sent.append(name + ': ' + str(n))
+              except Exception as exc:
+                  errors.append(name + ': ' + repr(exc))
+                  print('SEND FAILED for branch', name, ':', exc)
 
           if changed_others:
               lines = []
@@ -189,8 +198,12 @@ jobs:
                   head = (subject_prefix(all_entries) + time_stamp()
                           + 'New pushes in ' + REPO + ' (' + str(total) + ')' + branch_tag)
                   head += sha_suffix(all_entries, head)
-                  send(head, '\n'.join(lines))
-                  sent.append('others: ' + str(total))
+                  try:
+                      send(head, '\n'.join(lines))
+                      sent.append('others: ' + str(total))
+                  except Exception as exc:
+                      errors.append('others: ' + repr(exc))
+                      print('SEND FAILED for others:', exc)
 
           json.dump(branches, open('branch-state.json', 'w', encoding='utf-8'), indent=1, sort_keys=True)
 
@@ -200,10 +213,12 @@ jobs:
           if out:
               with open(out, 'a', encoding='utf-8') as f:
                   f.write('sent<<EOF\n' + summary + '\nEOF\n')
+                  f.write('allsent=' + ('true' if not errors else 'false') + '\n')
           PYEOF
           python notify.py
 
       - name: Save new branch state
+        if: steps.detect.outputs.allsent == 'true'
         run: |
           git config user.name  'monitor-bot'
           git config user.email 'actions@users.noreply.github.com'
@@ -215,7 +230,14 @@ jobs:
           git commit -m 'update branch-state'
           for i in 1 2 3; do
             if git push; then exit 0; fi
-            echo "push attempt $i failed, retrying in 30s"
-            sleep 30
+            echo "push attempt $i failed, rebasing onto current master and retrying"
+            git pull --rebase -X theirs origin master
+            sleep 20
           done
+          exit 1
+
+      - name: Fail if some emails were not sent
+        if: steps.detect.outputs.allsent != 'true'
+        run: |
+          echo "some emails failed to send; state NOT saved so the next run retries them"
           exit 1
